@@ -49,8 +49,25 @@ def triangulation(
         kp2: typing.Sequence[cv2.KeyPoint],
         matches: typing.Sequence[cv2.DMatch]
 ):
-    pass
-    # YOUR CODE HERE
+    if camera1_translation_vector.ndim == 1:
+        camera1_translation_vector = camera1_translation_vector.reshape(3, 1)
+    if camera2_translation_vector.ndim == 1:
+        camera2_translation_vector = camera2_translation_vector.reshape(3, 1)
+
+    RT1 = np.hstack((camera1_rotation_matrix, camera1_translation_vector))
+    RT2 = np.hstack((camera2_rotation_matrix, camera2_translation_vector))
+
+    P1 = camera_matrix @ RT1
+    P2 = camera_matrix @ RT2
+
+    pts1 = np.array([kp1[m.queryIdx].pt for m in matches]).T  # Shape (2, N)
+    pts2 = np.array([kp2[m.trainIdx].pt for m in matches]).T  # Shape (2, N)
+
+    points4D = cv2.triangulatePoints(P1, P2, pts1, pts2)
+
+    points3D = (points4D[:3] / points4D[3]).T  # Shape (N, 3)
+
+    return points3D
 
 
 # Task 4
