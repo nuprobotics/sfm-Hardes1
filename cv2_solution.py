@@ -16,10 +16,19 @@ def get_matches(image1, image2) -> typing.Tuple[
     kp2, descriptors2 = sift.detectAndCompute(img2_gray, None)
 
     bf = cv2.BFMatcher()
-    matches_1_to_2: typing.Sequence[typing.Sequence[cv2.DMatch]] = bf.knnMatch(descriptors1, descriptors2, k=2)
+    matches_1_to_2 = bf.knnMatch(descriptors1, descriptors2, k=2)
+    matches_2_to_1 = bf.knnMatch(descriptors2, descriptors1, k=2)
 
-    # YOUR CODE HERE
+    k = 0.75
+    good_matches_1_to_2 = [m for m, n in matches_1_to_2 if m.distance < k * n.distance]
+    good_matches_2_to_1 = [m for m, n in matches_2_to_1 if m.distance < k * n.distance]
 
+    pairs_1_to_2 = {(m.queryIdx, m.trainIdx): m for m in good_matches_1_to_2}
+    pairs_2_to_1 = {(m.trainIdx, m.queryIdx) for m in good_matches_2_to_1}
+    mutual_pairs = pairs_2_to_1.intersection(pairs_1_to_2.keys())
+    mutual_matches = [pairs_1_to_2[pair] for pair in mutual_pairs]
+
+    return kp1, kp2, mutual_matches
 
 def get_second_camera_position(kp1, kp2, matches, camera_matrix):
     coordinates1 = np.array([kp1[match.queryIdx].pt for match in matches])
@@ -40,8 +49,25 @@ def triangulation(
         kp2: typing.Sequence[cv2.KeyPoint],
         matches: typing.Sequence[cv2.DMatch]
 ):
-    pass
-    # YOUR CODE HERE
+    if camera1_translation_vector.ndim == 1:
+        camera1_translation_vector = camera1_translation_vector.reshape(3, 1)
+    if camera2_translation_vector.ndim == 1:
+        camera2_translation_vector = camera2_translation_vector.reshape(3, 1)
+
+    RT1 = np.hstack((camera1_rotation_matrix, camera1_translation_vector))
+    RT2 = np.hstack((camera2_rotation_matrix, camera2_translation_vector))
+
+    P1 = camera_matrix @ RT1
+    P2 = camera_matrix @ RT2
+
+    pts1 = np.array([kp1[m.queryIdx].pt for m in matches]).T  # Shape (2, N)
+    pts2 = np.array([kp2[m.trainIdx].pt for m in matches]).T  # Shape (2, N)
+
+    points4D = cv2.triangulatePoints(P1, P2, pts1, pts2)
+
+    points3D = (points4D[:3] / points4D[3]).T  # Shape (N, 3)
+
+    return points3D
 
 
 # Task 4
@@ -57,8 +83,9 @@ def resection(
 
 
 def convert_to_world_frame(translation_vector, rotation_matrix):
-    pass
-    # YOUR CODE HERE
+    camera_position = -np.dot(rotation_matrix.T, translation_vector)
+    camera_orientation = rotation_matrix.T
+    return camera_position, camera_orientation
 
 
 def visualisation(
