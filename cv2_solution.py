@@ -16,10 +16,19 @@ def get_matches(image1, image2) -> typing.Tuple[
     kp2, descriptors2 = sift.detectAndCompute(img2_gray, None)
 
     bf = cv2.BFMatcher()
-    matches_1_to_2: typing.Sequence[typing.Sequence[cv2.DMatch]] = bf.knnMatch(descriptors1, descriptors2, k=2)
+    matches_1_to_2 = bf.knnMatch(descriptors1, descriptors2, k=2)
+    matches_2_to_1 = bf.knnMatch(descriptors2, descriptors1, k=2)
 
-    # YOUR CODE HERE
+    k = 0.75
+    good_matches_1_to_2 = [m for m, n in matches_1_to_2 if m.distance < k * n.distance]
+    good_matches_2_to_1 = [m for m, n in matches_2_to_1 if m.distance < k * n.distance]
 
+    pairs_1_to_2 = {(m.queryIdx, m.trainIdx): m for m in good_matches_1_to_2}
+    pairs_2_to_1 = {(m.trainIdx, m.queryIdx) for m in good_matches_2_to_1}
+    mutual_pairs = pairs_2_to_1.intersection(pairs_1_to_2.keys())
+    mutual_matches = [pairs_1_to_2[pair] for pair in mutual_pairs]
+
+    return kp1, kp2, mutual_matches
 
 def get_second_camera_position(kp1, kp2, matches, camera_matrix):
     coordinates1 = np.array([kp1[match.queryIdx].pt for match in matches])
